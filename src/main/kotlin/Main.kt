@@ -20,6 +20,15 @@ private const val DEFAULT_MODEL_DIR = "llmlingua2_onnx"
 private const val MAX_SEQUENCE_LENGTH = 512
 private const val MAX_CONTENT_TOKENS = MAX_SEQUENCE_LENGTH - 2
 
+/**
+ * Runs the LLMLingua-2 prompt compressor as a command-line application.
+ *
+ * Supported options are documented in the built-in usage output.
+ *
+ * @param args command-line arguments controlling model location and compression behavior
+ * @throws IOException if tokenizer native libraries cannot be prepared
+ * @throws ModelException if the ONNX model cannot be loaded
+ */
 @Throws(IOException::class, ModelException::class)
 fun main(args: Array<String>) {
     val cli = CliArgs.parse(args)
@@ -51,7 +60,14 @@ fun main(args: Array<String>) {
     }
 }
 
-private class Llmlingua2Compressor(
+/**
+ * Compresses prompt text with an ONNX-exported LLMLingua-2 model directory.
+ *
+ * The model directory must contain `model.onnx` and `tokenizer.json`.
+ *
+ * @param modelPath path to the exported model directory
+ */
+class Llmlingua2Compressor(
     modelPath: Path,
 ) : AutoCloseable {
     private val tokenizer = HuggingFaceTokenizer.newInstance(modelPath.resolve("tokenizer.json"))
@@ -59,6 +75,8 @@ private class Llmlingua2Compressor(
     private val predictor: Predictor<NDList, NDList>
 
     init {
+        configureTokenizersNativeLibrary()
+
         val criteria =
             Criteria
                 .builder()
@@ -72,6 +90,15 @@ private class Llmlingua2Compressor(
         predictor = model.newPredictor()
     }
 
+    /**
+     * Compresses input text by removing lower-importance tokens.
+     *
+     * @param text source text to compress
+     * @param reduceRate fraction of tokens to remove, from `0.0` to `1.0`
+     * @param forceTokens tokens that must always be preserved
+     * @param forceReserveDigits whether tokens containing digits must always be preserved
+     * @return the compressed text and token counts for the operation
+     */
     fun compress(
         text: String,
         reduceRate: Double,
@@ -107,6 +134,7 @@ private class Llmlingua2Compressor(
         )
     }
 
+    /** Releases tokenizer and model resources held by this compressor instance. */
     override fun close() {
         predictor.close()
         model.close()
@@ -321,7 +349,14 @@ private class Llmlingua2Compressor(
     }
 }
 
-private data class CompressionResult(
+/**
+ * Result of a prompt compression operation.
+ *
+ * @property compressedText compressed text reconstructed from the kept tokens
+ * @property originalTokenCount number of content tokens before compression
+ * @property compressedTokenCount number of content tokens kept after compression
+ */
+data class CompressionResult(
     val compressedText: String,
     val originalTokenCount: Int,
     val compressedTokenCount: Int,
