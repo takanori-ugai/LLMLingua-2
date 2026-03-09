@@ -35,33 +35,38 @@ fun main(args: Array<String>) {
     configureTokenizersNativeLibrary()
 
     Llmlingua2Compressor(cli.modelPath).use { compressor ->
-        val result = compressor.compress(
-            text = text,
-            reduceRate = cli.rate,
-            forceTokens = cli.forceTokens,
-            forceReserveDigits = cli.forceReserveDigits,
-        )
+        val result =
+            compressor.compress(
+                text = text,
+                reduceRate = cli.rate,
+                forceTokens = cli.forceTokens,
+                forceReserveDigits = cli.forceReserveDigits,
+            )
 
         println(result.compressedText)
         System.err.println(
             "Compression ratio: ${formatRatio(result.compressedTokenCount, result.originalTokenCount)} " +
-                "(${result.compressedTokenCount}/${result.originalTokenCount} tokens kept)"
+                "(${result.compressedTokenCount}/${result.originalTokenCount} tokens kept)",
         )
     }
 }
 
-private class Llmlingua2Compressor(modelPath: Path) : AutoCloseable {
+private class Llmlingua2Compressor(
+    modelPath: Path,
+) : AutoCloseable {
     private val tokenizer = HuggingFaceTokenizer.newInstance(modelPath.resolve("tokenizer.json"))
     private val model: ZooModel<NDList, NDList>
     private val predictor: Predictor<NDList, NDList>
 
     init {
-        val criteria = Criteria.builder()
-            .setTypes(NDList::class.java, NDList::class.java)
-            .optModelPath(modelPath)
-            .optEngine("OnnxRuntime")
-            .optTranslator(NoopTranslator())
-            .build()
+        val criteria =
+            Criteria
+                .builder()
+                .setTypes(NDList::class.java, NDList::class.java)
+                .optModelPath(modelPath)
+                .optEngine("OnnxRuntime")
+                .optTranslator(NoopTranslator())
+                .build()
 
         model = criteria.loadModel()
         predictor = model.newPredictor()
@@ -78,20 +83,22 @@ private class Llmlingua2Compressor(modelPath: Path) : AutoCloseable {
             return CompressionResult("", 0, 0)
         }
 
-        val compressedChunks = chunks.map {
-            compressChunk(
-                chunk = it,
-                reduceRate = reduceRate,
-                forceTokens = forceTokens,
-                forceReserveDigits = forceReserveDigits,
-            )
-        }
+        val compressedChunks =
+            chunks.map {
+                compressChunk(
+                    chunk = it,
+                    reduceRate = reduceRate,
+                    forceTokens = forceTokens,
+                    forceReserveDigits = forceReserveDigits,
+                )
+            }
 
-        val compressedText = compressedChunks
-            .map { it.text.trim() }
-            .filter { it.isNotEmpty() }
-            .joinToString("\n\n")
-            .trim()
+        val compressedText =
+            compressedChunks
+                .map { it.text.trim() }
+                .filter { it.isNotEmpty() }
+                .joinToString("\n\n")
+                .trim()
 
         return CompressionResult(
             compressedText = compressedText,
@@ -127,15 +134,17 @@ private class Llmlingua2Compressor(modelPath: Path) : AutoCloseable {
         }
 
         val threshold = probabilityThreshold(words, reduceRate)
-        val keptTokenIds = words
-            .filter { shouldKeep(it, threshold) }
-            .flatMap { it.tokenIds }
+        val keptTokenIds =
+            words
+                .filter { shouldKeep(it, threshold) }
+                .flatMap { it.tokenIds }
 
-        val compressedText = if (keptTokenIds.isEmpty()) {
-            ""
-        } else {
-            tokenizer.decode(keptTokenIds.toLongArray()).trim()
-        }
+        val compressedText =
+            if (keptTokenIds.isEmpty()) {
+                ""
+            } else {
+                tokenizer.decode(keptTokenIds.toLongArray()).trim()
+            }
 
         return ChunkCompressionResult(
             text = compressedText,
@@ -188,11 +197,12 @@ private class Llmlingua2Compressor(modelPath: Path) : AutoCloseable {
             val startsWord = words.isEmpty() || isWordStart(token) || cleaned in forceTokens
 
             if (startsWord) {
-                words += ScoredWordBuilder(
-                    text = cleaned,
-                    tokenIds = mutableListOf(ids[index]),
-                    keepProbabilities = mutableListOf(keepProb),
-                )
+                words +=
+                    ScoredWordBuilder(
+                        text = cleaned,
+                        tokenIds = mutableListOf(ids[index]),
+                        keepProbabilities = mutableListOf(keepProb),
+                    )
             } else {
                 val current = words.last()
                 current.text += cleaned
@@ -203,11 +213,12 @@ private class Llmlingua2Compressor(modelPath: Path) : AutoCloseable {
 
         return words.map { builder ->
             val forced = builder.text in forceTokens || (forceReserveDigits && builder.text.any(Char::isDigit))
-            val score = if (forced) {
-                1.0
-            } else {
-                builder.keepProbabilities.maxOrNull() ?: 0.0
-            }
+            val score =
+                if (forced) {
+                    1.0
+                } else {
+                    builder.keepProbabilities.maxOrNull() ?: 0.0
+                }
 
             ScoredWord(
                 text = builder.text,
@@ -218,7 +229,10 @@ private class Llmlingua2Compressor(modelPath: Path) : AutoCloseable {
         }
     }
 
-    private fun probabilityThreshold(words: List<ScoredWord>, reduceRate: Double): Double {
+    private fun probabilityThreshold(
+        words: List<ScoredWord>,
+        reduceRate: Double,
+    ): Double {
         if (reduceRate <= 0.0) {
             return Double.NEGATIVE_INFINITY
         }
@@ -226,13 +240,14 @@ private class Llmlingua2Compressor(modelPath: Path) : AutoCloseable {
             return Double.POSITIVE_INFINITY
         }
 
-        val expanded = buildList {
-            words.forEach { word ->
-                repeat(word.tokenCount) {
-                    add(word.keepProbability)
+        val expanded =
+            buildList {
+                words.forEach { word ->
+                    repeat(word.tokenCount) {
+                        add(word.keepProbability)
+                    }
                 }
-            }
-        }.sorted()
+            }.sorted()
 
         if (expanded.isEmpty()) {
             return Double.POSITIVE_INFINITY
@@ -250,7 +265,10 @@ private class Llmlingua2Compressor(modelPath: Path) : AutoCloseable {
         return expanded[lowerIndex] + (expanded[upperIndex] - expanded[lowerIndex]) * fraction
     }
 
-    private fun shouldKeep(word: ScoredWord, threshold: Double): Boolean {
+    private fun shouldKeep(
+        word: ScoredWord,
+        threshold: Double,
+    ): Boolean {
         if (threshold == Double.NEGATIVE_INFINITY) {
             return true
         }
@@ -289,7 +307,11 @@ private class Llmlingua2Compressor(modelPath: Path) : AutoCloseable {
         return chunks
     }
 
-    private fun findChunkBoundary(tokens: List<String>, start: Int, endExclusive: Int): Int {
+    private fun findChunkBoundary(
+        tokens: List<String>,
+        start: Int,
+        endExclusive: Int,
+    ): Int {
         for (index in endExclusive - 1 downTo start + 1) {
             if (tokens[index] in CHUNK_END_TOKENS) {
                 return index + 1
@@ -366,7 +388,9 @@ private data class CliArgs(
                         printUsageAndExit()
                     }
 
-                    else -> error("Unknown argument: $arg")
+                    else -> {
+                        error("Unknown argument: $arg")
+                    }
                 }
                 index++
             }
@@ -380,14 +404,21 @@ private data class CliArgs(
             )
         }
 
-        private fun requireValue(args: Array<String>, index: Int, option: String): String {
+        private fun requireValue(
+            args: Array<String>,
+            index: Int,
+            option: String,
+        ): String {
             require(index < args.size) { "Missing value for $option" }
             return args[index]
         }
     }
 }
 
-private fun keepProbability(logits: FloatArray, tokenIndex: Int): Double {
+private fun keepProbability(
+    logits: FloatArray,
+    tokenIndex: Int,
+): Double {
     val offset = tokenIndex * 2
     val dropLogit = logits[offset].toDouble()
     val keepLogit = logits[offset + 1].toDouble()
@@ -417,7 +448,10 @@ private fun stripBoundarySpecialTokens(tokens: List<String>): List<String> {
     return tokens
 }
 
-private fun formatRatio(kept: Int, original: Int): String {
+private fun formatRatio(
+    kept: Int,
+    original: Int,
+): String {
     if (original == 0) {
         return "0.0000"
     }
@@ -436,7 +470,7 @@ private fun printUsageAndExit(): Nothing {
           --force-token <token>            Token that should always be preserved. Repeatable.
           --no-force-reserve-digits        Allow numeric tokens to be removed.
           --help                           Show this message.
-        """.trimIndent()
+        """.trimIndent(),
     )
     kotlin.system.exitProcess(0)
 }
@@ -451,10 +485,12 @@ private fun configureTokenizersNativeLibrary() {
 
     if (!Files.exists(targetLib)) {
         Files.createDirectories(targetDir)
-        val loader = HuggingFaceTokenizer::class.java.classLoader
-            ?: Thread.currentThread().contextClassLoader
-        val stream = loader.getResourceAsStream(resourcePath)
-            ?: throw IllegalStateException("Native tokenizer library not found: $resourcePath")
+        val loader =
+            HuggingFaceTokenizer::class.java.classLoader
+                ?: Thread.currentThread().contextClassLoader
+        val stream =
+            loader.getResourceAsStream(resourcePath)
+                ?: throw IllegalStateException("Native tokenizer library not found: $resourcePath")
 
         stream.use { input ->
             Files.copy(input, targetLib, StandardCopyOption.REPLACE_EXISTING)
