@@ -15,20 +15,26 @@ LLMLingua-2 is a prompt compression technique proposed by Microsoft that uses a 
 
 ### 1. Prepare the ONNX Model
 
-Download the LLMLingua-2 ONNX model and tokenizer:
+Export the published LLMLingua-2 checkpoint to ONNX and save the tokenizer files:
+
+Note: The following steps require Python and `pip` to be installed.
 
 ```bash
 # Create model directory
 mkdir -p ~/llmlingua2_onnx
 
-# Download model files (example using huggingface-cli)
-pip install huggingface_hub
-huggingface-cli download microsoft/llmlingua-2-bert-base-uncased --local-dir ~/llmlingua2_onnx
+# Export the Microsoft checkpoint to ONNX
+pip install "optimum[exporters]"
+optimum-cli export onnx \
+  --model microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank \
+  --task token-classification \
+  ~/llmlingua2_onnx
 ```
 
 The model directory should contain:
 - `model.onnx` - The ONNX model file
 - `tokenizer.json` - The HuggingFace tokenizer
+- `config.json` and tokenizer metadata generated during export
 
 ### 2. Build the Project
 
@@ -65,6 +71,7 @@ echo "Your long prompt text..." | ./gradlew run --args="--rate 0.5"
 ### Programmatic Usage
 
 ```kotlin
+import org.example.Llmlingua2Compressor
 import java.nio.file.Paths
 
 fun main() {
@@ -101,10 +108,12 @@ fun main() {
 
 ## References
 
-- [LLMLingua-2 Paper](https://arxiv.org/abs/2310.05775) - Pan et al., 2023
+- [LLMLingua-2 Paper](https://arxiv.org/abs/2403.12968) - Pan et al., 2024
 - [Microsoft LLMLingua](https://github.com/microsoft/LLMLingua) - Original Python implementation
 - [DJL Documentation](https://djl.ai/docs/)
 
 ## License
 
-This implementation is provided as-is. Please refer to the original LLMLingua-2 license for model usage terms.
+The pretrained LLMLingua-2 model and related artifacts are subject to the license terms published with the original Microsoft release.
+
+This repository does not currently include a separate `LICENSE` file for the Kotlin implementation code. If you intend to reuse or distribute this implementation, add an explicit repository license (for example, MIT or Apache-2.0) that is distinct from the model usage terms.
