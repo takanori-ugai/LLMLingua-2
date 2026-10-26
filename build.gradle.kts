@@ -16,7 +16,7 @@ repositories {
 dependencies {
     implementation("ai.djl:api:0.38.0")
     implementation("ai.djl.onnxruntime:onnxruntime-engine:0.38.0")
-    implementation("ai.djl.huggingface:tokenizers:0.38.0")
+    implementation("ai.djl.huggingface:tokenizers:0.39.0")
     testImplementation(kotlin("test"))
 }
 
